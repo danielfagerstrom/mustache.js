@@ -252,22 +252,34 @@
    * was contained in that section.
    */
   function renderTokens(tokens, writer, context, template, write) {
-    var token;
+    var token, tokenValue, value;
     for (var i = 0, len = tokens.length; i < len; ++i) {
       token = tokens[i];
-      renderToken(token, writer, context, template, write);
+      tokenValue = token[1];
+      switch (token[0]) {
+      case '#':
+      case '^':
+      case '&':
+      case 'name':
+        value = context.lookup(tokenValue);
+        break;
+      case '>':
+        value = writer.getPartial(tokenValue);
+        break;
+      case 'text':
+        value = tokenValue;
+        break;
+      }
+
+      renderToken(token, value, writer, context, template, write);
     }
 
     return;
   }
 
-  function renderToken(token, writer, context, template, write) {
-    var tokenValue = token[1], value;
-
+  function renderToken(token, value, writer, context, template, write) {
     switch (token[0]) {
     case '#':
-      value = context.lookup(tokenValue);
-
       if (typeof value === 'object') {
         if (isArray(value)) {
           for (var j = 0, jlen = value.length; j < jlen; ++j) {
@@ -288,8 +300,6 @@
 
       break;
     case '^':
-      value = context.lookup(tokenValue);
-
       // Use JavaScript's definition of falsy. Include empty arrays.
       // See https://github.com/janl/mustache.js/issues/186
       if (!value || (isArray(value) && value.length === 0)) {
@@ -298,19 +308,16 @@
 
       break;
     case '>':
-      value = writer.getPartial(tokenValue);
       if (typeof value === 'function') write(value(context));
       break;
     case '&':
-      value = context.lookup(tokenValue);
       if (value != null) write(value);
       break;
     case 'name':
-      value = context.lookup(tokenValue);
       if (value != null) write(exports.escape(value));
       break;
     case 'text':
-      write(tokenValue);
+      write(value);
       break;
     }
 
