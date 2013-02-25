@@ -233,8 +233,16 @@
     };
   };
 
+  Writer.prototype.streamRender = function (template, view, partials) {
+    var compiled = this.compile(template);
+    return {
+      forEach: function(write) { return compiled(view, partials, write); },
+      read: function() { return compiled(view, partials); }
+    };
+  };
+
   Writer.prototype.render = function (template, view, partials) {
-    return this.compile(template)(view, partials);
+    return this.streamRender(template, view, partials).read();
   };
 
   /**
@@ -515,6 +523,16 @@
    */
   exports.compileTokens = function (tokens, template) {
     return _writer.compileTokens(tokens, template);
+  };
+
+  /**
+   * Creates a reader object with a `forEach(callback)` and a `read()`
+   * method for the `template` with the given `view` and `partials`
+   * using the default writer. See
+   * http://documentup.com/kriskowal/q-io#streams/reader.
+   */
+  exports.streamRender = function (template, view, partials) {
+    return _writer.streamRender(template, view, partials);
   };
 
   /**
