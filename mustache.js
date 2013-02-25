@@ -252,60 +252,66 @@
    * was contained in that section.
    */
   function renderTokens(tokens, writer, context, template, write) {
-    var token, tokenValue, value;
+    var token;
     for (var i = 0, len = tokens.length; i < len; ++i) {
       token = tokens[i];
-      tokenValue = token[1];
+      renderToken(token, writer, context, template, write);
+    }
 
-      switch (token[0]) {
-      case '#':
-        value = context.lookup(tokenValue);
+    return;
+  }
 
-        if (typeof value === 'object') {
-          if (isArray(value)) {
-            for (var j = 0, jlen = value.length; j < jlen; ++j) {
-              renderTokens(token[4], writer, context.push(value[j]), template, write);
-            }
-          } else if (value) {
-            renderTokens(token[4], writer, context.push(value), template, write);
+  function renderToken(token, writer, context, template, write) {
+    var tokenValue = token[1], value;
+
+    switch (token[0]) {
+    case '#':
+      value = context.lookup(tokenValue);
+
+      if (typeof value === 'object') {
+        if (isArray(value)) {
+          for (var j = 0, jlen = value.length; j < jlen; ++j) {
+            renderTokens(token[4], writer, context.push(value[j]), template, write);
           }
-        } else if (typeof value === 'function') {
-          var text = template == null ? null : template.slice(token[3], token[5]);
-          value = value.call(context.view, text, function (template) {
-            return writer.render(template, context);
-          });
-          if (value != null) write(value);
         } else if (value) {
-          renderTokens(token[4], writer, context, template, write);
+          renderTokens(token[4], writer, context.push(value), template, write);
         }
-
-        break;
-      case '^':
-        value = context.lookup(tokenValue);
-
-        // Use JavaScript's definition of falsy. Include empty arrays.
-        // See https://github.com/janl/mustache.js/issues/186
-        if (!value || (isArray(value) && value.length === 0)) {
-          renderTokens(token[4], writer, context, template, write);
-        }
-
-        break;
-      case '>':
-        value = writer.getPartial(tokenValue);
-        if (typeof value === 'function') write(value(context));
-        break;
-      case '&':
-        value = context.lookup(tokenValue);
+      } else if (typeof value === 'function') {
+        var text = template == null ? null : template.slice(token[3], token[5]);
+        value = value.call(context.view, text, function (template) {
+          return writer.render(template, context);
+        });
         if (value != null) write(value);
-        break;
-      case 'name':
-        value = context.lookup(tokenValue);
-        if (value != null) write(exports.escape(value));
-        break;
-      case 'text':
-        write(tokenValue);
-        break;
+      } else if (value) {
+        renderTokens(token[4], writer, context, template, write);
       }
+
+      break;
+    case '^':
+      value = context.lookup(tokenValue);
+
+      // Use JavaScript's definition of falsy. Include empty arrays.
+      // See https://github.com/janl/mustache.js/issues/186
+      if (!value || (isArray(value) && value.length === 0)) {
+        renderTokens(token[4], writer, context, template, write);
+      }
+
+      break;
+    case '>':
+      value = writer.getPartial(tokenValue);
+      if (typeof value === 'function') write(value(context));
+      break;
+    case '&':
+      value = context.lookup(tokenValue);
+      if (value != null) write(value);
+      break;
+    case 'name':
+      value = context.lookup(tokenValue);
+      if (value != null) write(exports.escape(value));
+      break;
+    case 'text':
+      write(tokenValue);
+      break;
     }
 
     return;
