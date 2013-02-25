@@ -3,33 +3,7 @@ require('./helper');
 var fs = require('fs');
 var path = require('path');
 var _files = path.join(__dirname, '_files');
-
-function getContents(testName, ext) {
-  return fs.readFileSync(path.join(_files, testName + '.' + ext), 'utf8');
-}
-
-function getView(testName) {
-  var view = getContents(testName, 'js');
-  if (!view) throw new Error('Cannot find view for test "' + testName + '"');
-  return eval(view);
-}
-
-function getPartial(testName) {
-  try {
-    return getContents(testName, 'partial');
-  } catch (e) {
-    // No big deal. Not all tests need to test partial support.
-  }
-}
-
-function getTest(testName) {
-  var test = {};
-  test.view = getView(testName);
-  test.template = getContents(testName, 'mustache');
-  test.partial = getPartial(testName);
-  test.expect = getContents(testName, 'txt');
-  return test;
-}
+var getTest = require('./utils').getTest;
 
 // You can put the name of a specific test to run in the TEST environment
 // variable (e.g. TEST=backslashes vows test/render-test.js)
@@ -52,7 +26,7 @@ describe('Mustache.render', function () {
   });
 
   testNames.forEach(function (testName) {
-    var test = getTest(testName);
+    var test = getTest(_files, testName);
 
     it('knows how to render ' + testName, function () {
       var output;
