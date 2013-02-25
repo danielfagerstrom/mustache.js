@@ -210,7 +210,9 @@
 
   Writer.prototype.compileTokens = function (tokens, template) {
     var self = this;
-    return function (view, partials) {
+    return function (view, partials, write) {
+      var chunks;
+
       if (partials) {
         if (typeof partials === 'function') {
           self._loadPartial = partials;
@@ -221,7 +223,13 @@
         }
       }
 
-      return renderTokens(tokens, self, Context.make(view), template);
+      if (!write) {
+        chunks = [];
+        write = function(chunk) { chunks.push(chunk); };
+      }
+
+      renderTokens(tokens, self, Context.make(view), template, write);
+      return chunks ? chunks.join('') : undefined;
     };
   };
 
@@ -235,9 +243,7 @@
    * higher-order sections to extract the portion of the original template that
    * was contained in that section.
    */
-  function renderTokens(tokens, writer, context, template) {
-    var buffer = '';
-
+  function renderTokens(tokens, writer, context, template, write) {
     var token, tokenValue, value;
     for (var i = 0, len = tokens.length; i < len; ++i) {
       token = tokens[i];
@@ -250,19 +256,19 @@
         if (typeof value === 'object') {
           if (isArray(value)) {
             for (var j = 0, jlen = value.length; j < jlen; ++j) {
-              buffer += renderTokens(token[4], writer, context.push(value[j]), template);
+              renderTokens(token[4], writer, context.push(value[j]), template, write);
             }
           } else if (value) {
-            buffer += renderTokens(token[4], writer, context.push(value), template);
+            renderTokens(token[4], writer, context.push(value), template, write);
           }
         } else if (typeof value === 'function') {
           var text = template == null ? null : template.slice(token[3], token[5]);
           value = value.call(context.view, text, function (template) {
             return writer.render(template, context);
           });
-          if (value != null) buffer += value;
+          if (value != null) write(value);
         } else if (value) {
-          buffer += renderTokens(token[4], writer, context, template);
+          renderTokens(token[4], writer, context, template, write);
         }
 
         break;
@@ -272,29 +278,29 @@
         // Use JavaScript's definition of falsy. Include empty arrays.
         // See https://github.com/janl/mustache.js/issues/186
         if (!value || (isArray(value) && value.length === 0)) {
-          buffer += renderTokens(token[4], writer, context, template);
+          renderTokens(token[4], writer, context, template, write);
         }
 
         break;
       case '>':
         value = writer.getPartial(tokenValue);
-        if (typeof value === 'function') buffer += value(context);
+        if (typeof value === 'function') write(value(context));
         break;
       case '&':
         value = context.lookup(tokenValue);
-        if (value != null) buffer += value;
+        if (value != null) write(value);
         break;
       case 'name':
         value = context.lookup(tokenValue);
-        if (value != null) buffer += exports.escape(value);
+        if (value != null) write(exports.escape(value));
         break;
       case 'text':
-        buffer += tokenValue;
+        write(tokenValue);
         break;
       }
     }
 
-    return buffer;
+    return;
   }
 
   /**
