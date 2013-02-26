@@ -68,6 +68,17 @@
     });
   }
 
+  function isPromise(object) {
+    return object && typeof object.then === "function";
+  }
+
+  function when(value, fulfilled) {
+    if (isPromise(value))
+      return value.then(fulfilled);
+    else
+      return fulfilled(value);
+  }
+
   // Export the escaping function so that the user may override it.
   // See https://github.com/janl/mustache.js/issues/244
   exports.escape = escapeHtml;
@@ -211,7 +222,7 @@
   Writer.prototype.compileTokens = function (tokens, template) {
     var self = this;
     return function (view, partials, write) {
-      var chunks;
+      var chunks, promise;
 
       if (partials) {
         if (typeof partials === 'function') {
@@ -228,8 +239,13 @@
         write = function(chunk) { chunks.push(chunk); };
       }
 
-      renderTokens(tokens, self, Context.make(view), template, write);
-      return chunks ? chunks.join('') : undefined;
+      promise = renderTokens(tokens, self, Context.make(view), template, write);
+      if (isPromise(promise))
+        return promise.then(function() {
+          return chunks ? chunks.join('') : undefined;
+        });
+      else
+        return chunks ? chunks.join('') : undefined;
     };
   };
 
@@ -252,7 +268,7 @@
    * was contained in that section.
    */
   function renderTokens(tokens, writer, context, template, write) {
-    var token, tokenValue, value;
+    var token, tokenValue, value, promise;
     for (var i = 0, len = tokens.length; i < len; ++i) {
       token = tokens[i];
       tokenValue = token[1];
@@ -271,57 +287,88 @@
         break;
       }
 
-      renderToken(token, value, writer, context, template, write);
+      promise = when(value, function(value) {
+        return renderToken(token, value, writer, context, template, write);
+      });
+      if (isPromise(promise)) {
+        promise = promise.then(function() {
+          return renderTokens(tokens.slice(i + 1), writer, context, template, write);
+        });
+        break;
+      }
     }
 
-    return;
+    return promise;
   }
 
   function renderToken(token, value, writer, context, template, write) {
+    var promise;
     switch (token[0]) {
     case '#':
       if (typeof value === 'object') {
         if (isArray(value)) {
-          for (var j = 0, jlen = value.length; j < jlen; ++j) {
-            renderTokens(token[4], writer, context.push(value[j]), template, write);
-          }
+          promise = arrayRenderToken(token, value, writer, context, template, write);
+        } else if (value && value.forEach) {
+          var innerPromise;
+          promise = value.forEach(function(value) {
+            innerPromise = when(innerPromise, function() {
+              return renderTokens(token[4], writer, context.push(value), template, write);
+            });
+          });
+          promise = when(promise, function() { return innerPromise; });
         } else if (value) {
-          renderTokens(token[4], writer, context.push(value), template, write);
+          promise = renderTokens(token[4], writer, context.push(value), template, write);
         }
       } else if (typeof value === 'function') {
         var text = template == null ? null : template.slice(token[3], token[5]);
         value = value.call(context.view, text, function (template) {
           return writer.render(template, context);
         });
-        if (value != null) write(value);
+        if (value != null) promise = write(value);
       } else if (value) {
-        renderTokens(token[4], writer, context, template, write);
+        promise = renderTokens(token[4], writer, context, template, write);
       }
-
       break;
     case '^':
       // Use JavaScript's definition of falsy. Include empty arrays.
       // See https://github.com/janl/mustache.js/issues/186
       if (!value || (isArray(value) && value.length === 0)) {
-        renderTokens(token[4], writer, context, template, write);
+        promise = renderTokens(token[4], writer, context, template, write);
       }
-
       break;
     case '>':
-      if (typeof value === 'function') write(value(context));
+      if (typeof value === 'function') promise = write(value(context));
       break;
     case '&':
-      if (value != null) write(value);
+      if (value != null) promise = write(value);
       break;
     case 'name':
-      if (value != null) write(exports.escape(value));
+      if (value != null) promise = write(exports.escape(value));
       break;
     case 'text':
-      write(value);
+      promise = write(value);
       break;
     }
 
-    return;
+    return promise;
+  }
+
+  function arrayRenderToken(token, values, writer, context, template, write) {
+    var promise, value;
+    for (var j = 0, jlen = values.length; j < jlen; ++j) {
+      value = values[j];
+
+      promise = when(value, function(value) {
+        return renderTokens(token[4], writer, context.push(value), template, write);
+      });
+      if (isPromise(promise)) {
+        promise = promise.then(function() {
+          return arrayRenderToken(token, values.slice(j + 1), writer, context, template, write);
+        });
+        break;
+      }
+    }
+    return promise;
   }
 
   /**
