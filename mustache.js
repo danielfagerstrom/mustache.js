@@ -347,7 +347,10 @@
         value = value.call(context.view, text, function (template) {
           return writer.render(template, context);
         });
-        if (value != null) promise = write(value);
+        promise = when(value, function(value) {
+          if (value != null) promise = write(value);
+          return promise;
+        });
       } else if (value) {
         promise = renderTokens(token[4], writer, context, template, write);
       }
