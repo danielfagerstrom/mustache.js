@@ -283,12 +283,9 @@
       }
 
       promise = renderTokens(tokens, self, Context.make(view), template, write);
-      if (isPromise(promise))
-        return promise.then(function() {
-          return chunks ? chunks.join('') : undefined;
-        });
-      else
+      return when(promise, function() {
         return chunks ? chunks.join('') : undefined;
+      });
     };
   };
 
