@@ -1,3 +1,68 @@
+# Promise aware and streaming mustache.js 
+
+This is a fork of [mustache.js](http://github.com/janl/mustache.js) that is (hopefully) completely back compatible and add:
+
+* handling of deferred/promises in views
+* streaming output
+
+The only requirement on the promises is that they have the `.then` method from the [Promises/A+ proposal](http://promises-aplus.github.com/promises-spec/). But I have only tested it with the [Q library](http://documentup.com/kriskowal/q), so there might be problems with other promise libraries.
+
+## Promises
+
+Promises can be used anywhere in a view, a small example using promises from the [Q library](http://documentup.com/kriskowal/q):
+
+    var view = {
+      title: Q.delay("Joe", 100),
+      calc: function () {
+        return Q.delay(2 + 4, 200);
+      }
+    };
+
+    var output = Mustache.render("{{title}} spends {{calc}}", view);
+    
+    Q.when(output, function(output) {
+      console.log(output);
+    }).done();
+
+In this example `Q.delay("Joe", 100)` returns a deferred that resolve to the value `"Joe"` after 100 ms. When using promises in a view `Mustache.reder` _might_ return a promise for a string instead of a string. The result therefore need to be normalized using e.g. `Q.when`. At least while using the Q library it is important to end the promise chain using a failure handler or the `.done()` method, otherwise errors will be swallowed without reports.
+
+### Section functions
+
+Ordinary section functions like:
+
+    {
+      "bold": function () {
+        return function (text, render) {
+          return "<b>" + render(text) + "</b>";
+        }
+      }
+    }
+
+will *not* work if there are promises in the view as the `render` function might return a promise for a string instead of a string. A promise aware section function would look like:
+
+    {
+      "bold": function () {
+        return function (text, render) {
+          Q.when(render(text), function(rendered) {
+            return "<b>" + rendered + "</b>";
+          });
+        }
+      }
+    }
+
+## Streaming output
+
+There is a `Mustache.streamRender(template, view, partials).forEach(write)` method that can be used for streaming rendering, the `write(chunk)` function render a chunk of the total output and can optionaly return a promise that resolves when the writing of the chuk is completed:
+
+    Mustache.streamRender(template, view).forEach(function(chunk) {
+      return FS.append(filePath, chunk);
+    });
+
+Here `FS.append` is from [q-io](http://documentup.com/kriskowal/q-io) and return a promise. The `streamRender` method can be used for creating a HTTP response body for [JSGI applications](http://documentup.com/kriskowal/q-io#http/body).
+
+
+# Original documentation
+* * *
 # mustache.js - Logic-less {{mustache}} templates with JavaScript
 
 > What could be more logical awesome than no logic at all?
