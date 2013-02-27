@@ -87,17 +87,16 @@
    * of the array is finished.
    */
   function sequentialEach(array, fn) {
-    var promise;
-    for (var i = 0, len = array.length; i < len; ++i) {
-      promise = fn(array[i]);
-      if (isPromise(promise)) {
-        promise = promise.then(function() {
-          return sequentialEach(array.slice(i + 1), fn);
-        });
-        break;
-      }
+    var i = 0, len = array.length;
+    function slurp() {
+      var promise;
+      while (i < len && !isPromise(promise = fn(array[i++]))) // iterate to next promise
+        ;
+      if (i < len) // defer the rest of the iteration if there are elements left
+        promise = promise.then(function() { return slurp(); });
+      return promise;
     }
-    return promise;
+    return slurp();
   }
 
   // Export the escaping function so that the user may override it.
