@@ -79,6 +79,27 @@
       return fulfilled(value);
   }
 
+  /*
+   * Iterates sequentialy over an array `array`, applying a function `fn` on each element.
+   * If the result of a function application on an element is a promise, the application on the
+   * next element will wait until the promise is fullfilled. If any of the function apllications
+   * return a promise, `sequentialEach` will return a promise that resolves when the processing
+   * of the array is finished.
+   */
+  function sequentialEach(array, fn) {
+    var promise;
+    for (var i = 0, len = array.length; i < len; ++i) {
+      promise = fn(array[i]);
+      if (isPromise(promise)) {
+        promise = promise.then(function() {
+          return sequentialEach(array.slice(i + 1), fn);
+        });
+        break;
+      }
+    }
+    return promise;
+  }
+
   // Export the escaping function so that the user may override it.
   // See https://github.com/janl/mustache.js/issues/244
   exports.escape = escapeHtml;
@@ -291,10 +312,10 @@
    * was contained in that section.
    */
   function renderTokens(tokens, writer, context, template, write) {
-    var token, tokenValue, value, promise;
-    for (var i = 0, len = tokens.length; i < len; ++i) {
-      token = tokens[i];
+    return sequentialEach(tokens, function(token) {
+      var tokenValue, value;
       tokenValue = token[1];
+
       switch (token[0]) {
       case '#':
       case '^':
@@ -310,18 +331,10 @@
         break;
       }
 
-      promise = when(value, function(value) {
+      return when(value, function(value) {
         return renderToken(token, value, writer, context, template, write);
       });
-      if (isPromise(promise)) {
-        promise = promise.then(function() {
-          return renderTokens(tokens.slice(i + 1), writer, context, template, write);
-        });
-        break;
-      }
-    }
-
-    return promise;
+    });
   }
 
   function renderToken(token, value, writer, context, template, write) {
@@ -380,21 +393,11 @@
   }
 
   function arrayRenderToken(token, values, writer, context, template, write) {
-    var promise, value;
-    for (var j = 0, jlen = values.length; j < jlen; ++j) {
-      value = values[j];
-
-      promise = when(value, function(value) {
+    return sequentialEach(values, function(value) {
+      return when(value, function(value) {
         return renderTokens(token[4], writer, context.push(value), template, write);
       });
-      if (isPromise(promise)) {
-        promise = promise.then(function() {
-          return arrayRenderToken(token, values.slice(j + 1), writer, context, template, write);
-        });
-        break;
-      }
-    }
-    return promise;
+    });
   }
 
   /**
