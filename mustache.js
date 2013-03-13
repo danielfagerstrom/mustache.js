@@ -188,24 +188,18 @@
 
   function lookupAux(value, context, name, origName) {
     while (context) {
-      if (name.indexOf('.') > 0) {
-        var names = name.split('.'), i = 0, j;
-        while (value && i < names.length) {
-          j = i++;
-          value = when(value, function(value) {
-            return value[names[j]];
-          });
-          if (isPromise(value) && i < names.length) {
-            value = value.then(function(value) {
-              return lookupAux(value, context, names.slice(j + 1).join('.'), origName);
-            });
-            break;
-          }
-        }
-      } else {
-        value = when(value, function(view) {
-          return view[name];
+      var names = name.split('.'), i = 0, j;
+      while (value && i < names.length) {
+        j = i++;
+        value = when(value, function(value) {
+          return value[names[j]];
         });
+        if (isPromise(value) && i < names.length) {
+          value = value.then(function(value) {
+            return lookupAux(value, context, names.slice(j + 1).join('.'), origName);
+          });
+          break;
+        }
       }
 
       if (isPromise(value)) {
