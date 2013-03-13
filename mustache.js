@@ -179,10 +179,6 @@
       self._cache[name] = value;
     }
 
-    value = when(value, function(value) {
-      return typeof value === 'function' ? value.call(self.view) : value;
-    });
-
     return value;
   };
 
@@ -192,6 +188,9 @@
       while (context) {
         while (value && i < names.length && !isPromise(value)) {
           value = value[names[i++]];
+          value = when(value, function(value) {
+            return typeof value === 'function' ? value.call(context.view) : value;
+          });
         }
 
         if (isPromise(value)) // If we find a promise, defer until its resolved
