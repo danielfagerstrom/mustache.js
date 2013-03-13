@@ -175,40 +175,43 @@
     var self = this, value = self._cache[name];
 
     if (!value) {
-      value = name == '.' ? self.view : lookupAux(self, name);
+      if (name == '.') {
+        value = self.view;
+      } else {
+        var names = name.split('.'), i = 0, context = self;
+        value = context.view;
+
+        function search() {
+          while (context) {
+            while (value && i < names.length && !isPromise(value)) {
+              value = value[names[i++]];
+              value = when(value, function(value) {
+                return typeof value === 'function' ? value.call(self.view) : value;
+              });
+            }
+
+            if (isPromise(value)) // If we find a promise, defer until its resolved
+              return value.then(function(v) {
+                value = v;
+                return search();
+              });
+
+            if (value != null) break;
+
+            context = context.parent;
+            value = context ? context.view : null;
+            i = 0;
+          }
+          return value;
+        }
+
+        value = search();
+      }
       self._cache[name] = value;
     }
 
     return value;
   };
-
-  function lookupAux(context, name) {
-    var names = name.split('.'), i = 0, value = context.view, origContext = context;
-    function search() {
-      while (context) {
-        while (value && i < names.length && !isPromise(value)) {
-          value = value[names[i++]];
-          value = when(value, function(value) {
-            return typeof value === 'function' ? value.call(origContext.view) : value;
-          });
-        }
-
-        if (isPromise(value)) // If we find a promise, defer until its resolved
-          return value.then(function(v) {
-            value = v;
-            return search();
-          });
-
-        if (value != null) break;
-
-        context = context.parent;
-        value = context ? context.view : null;
-        i = 0;
-      }
-      return value;
-    }
-    return search();
-  }
 
   function Writer() {
     this.clearCache();
