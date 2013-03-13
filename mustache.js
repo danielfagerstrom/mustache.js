@@ -175,7 +175,7 @@
     var self = this, value = self._cache[name];
 
     if (!value) {
-      value = name == '.' ? self.view : lookupAux(self.view, self, name, name);
+      value = name == '.' ? self.view : lookupAux(self, name);
       self._cache[name] = value;
     }
 
@@ -186,40 +186,29 @@
     return value;
   };
 
-  function lookupAux(value, context, name, origName) {
-    while (context) {
-      var names = name.split('.'), i = 0, j;
-      while (value && i < names.length) {
-        j = i++;
-        value = when(value, function(value) {
-          return value[names[j]];
-        });
-        if (isPromise(value) && i < names.length) {
-          value = value.then(function(value) {
-            return lookupAux(value, context, names.slice(j + 1).join('.'), origName);
-          });
-          break;
+  function lookupAux(context, name) {
+    var names = name.split('.'), i = 0, value = context.view;
+    function search() {
+      while (context) {
+        while (value && i < names.length && !isPromise(value)) {
+          value = value[names[i++]];
         }
-      }
 
-      if (isPromise(value)) {
-        value = value.then(function(value) {
-          if (value != null) {
-            return value;
-          } else if ((context = context.parent)) {
-            return lookupAux(context.view, context, origName, origName);
-          } else
-            return null;
-        });
-        break;
-      } else {
+        if (isPromise(value)) // If we find a promise, defer until its resolved
+          return value.then(function(v) {
+            value = v;
+            return search();
+          });
+
         if (value != null) break;
 
         context = context.parent;
-        if (context) value = context.view;
+        value = context ? context.view : null;
+        i = 0;
       }
+      return value;
     }
-    return value;
+    return search();
   }
 
   function Writer() {
