@@ -183,13 +183,13 @@
   };
 
   function lookupAux(context, name) {
-    var names = name.split('.'), i = 0, value = context.view;
+    var names = name.split('.'), i = 0, value = context.view, origContext = context;
     function search() {
       while (context) {
         while (value && i < names.length && !isPromise(value)) {
           value = value[names[i++]];
           value = when(value, function(value) {
-            return typeof value === 'function' ? value.call(context.view) : value;
+            return typeof value === 'function' ? value.call(origContext.view) : value;
           });
         }
 
