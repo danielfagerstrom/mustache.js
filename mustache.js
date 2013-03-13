@@ -223,14 +223,17 @@
   };
 
   Writer.prototype.compile = function (template, tags) {
-    var fn = this._cache[template];
+    var self = this;
+    return when(template, function(template) {
+      var fn = self._cache[template];
 
-    if (!fn) {
-      var tokens = exports.parse(template, tags);
-      fn = this._cache[template] = this.compileTokens(tokens, template);
-    }
+      if (!fn) {
+        var tokens = exports.parse(template, tags);
+        fn = self._cache[template] = self.compileTokens(tokens, template);
+      }
 
-    return fn;
+      return fn;
+    });
   };
 
   Writer.prototype.compilePartial = function (name, template, tags) {
@@ -277,8 +280,12 @@
   Writer.prototype.streamRender = function (template, view, partials) {
     var compiled = this.compile(template);
     return {
-      forEach: function(write) { return compiled(view, partials, write); },
-      read: function() { return compiled(view, partials); }
+      forEach: function(write) {
+        return when(compiled, function(compiled) { return compiled(view, partials, write); });
+      },
+      read: function() {
+        return when(compiled, function(compiled) { return compiled(view, partials); });
+      }
     };
   };
 
