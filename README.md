@@ -3,6 +3,7 @@
 This is a fork of [mustache.js](http://github.com/janl/mustache.js) that is (hopefully) completely back compatible and add:
 
 * handling of deferred/promises in views
+* deferred templates and partials
 * streaming output
 
 The only requirement on the promises is that they have the `.then` method from the [Promises/A+ proposal](http://promises-aplus.github.com/promises-spec/). But I have only tested it with the [Q library](http://documentup.com/kriskowal/q), so there might be problems with other promise libraries.
@@ -25,6 +26,8 @@ Promises can be used anywhere in a view, a small example using promises from the
     }).done();
 
 In this example `Q.delay("Joe", 100)` returns a deferred that resolve to the value `"Joe"` after 100 ms. When using promises in a view `Mustache.reder` _might_ return a promise for a string instead of a string. The result therefore need to be normalized using e.g. `Q.when`. At least while using the Q library it is important to end the promise chain using a failure handler or the `.done()` method, otherwise errors will be swallowed without reports.
+
+See [tests](test/q-render-test.js) and [test files](test/_qfiles) for more examples.
 
 ### Section functions
 
@@ -49,6 +52,12 @@ will *not* work if there are promises in the view as the `render` function might
         }
       }
     }
+
+## Deferred templates and partials
+
+In `Mustache.render`, `Mustache.streamRender`, `Mustache.compile` and `Mustache.compilePartial`, template and partials can be deferred strings instead of strings. This makes it more convenient to use templates and partials that are fetched from the file system or through http.
+
+See [tests](test/deferred-templates-test.js) for examples.
 
 ## Streaming output
 
