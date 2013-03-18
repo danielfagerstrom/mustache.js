@@ -172,43 +172,64 @@
   };
 
   Context.prototype.lookup = function (name) {
-    var self = this, value = self._cache[name];
+    var self = this, value = self._cache[name], view = self.view;
 
     if (!value) {
       if (name == '.') {
-        value = self.view;
+        value = view;
       } else {
         var names = name.split('.'), i = 0, context = self;
-        value = context.view;
 
-        function search() {
-          while (context) {
-            while (value && i < names.length && !isPromise(value)) {
-              value = value[names[i++]];
-              value = when(value, function(value) {
-                return typeof value === 'function' ? value.call(self.view) : value;
-              });
-            }
-
-            if (isPromise(value)) // If we find a promise, defer until its resolved
-              return value.then(function(v) {
-                value = v;
-                return search();
-              });
-
-            if (value != null) break;
-
-            context = context.parent;
-            value = context ? context.view : null;
-            i = 0;
+        function walkContext() {
+          // Walk the context stack from top to bottom, finding the first
+          // context that contains the first part of the name
+          while (!isPromise(value) && value == null && (context = context.parent)) {
+            view = context.view;
+            value = view[names[0]];
           }
+          if (isPromise(value)) // If we find a promise, defer until its resolved
+            return value.then(function(v) { value = v; return walkContext(); });
           return value;
         }
 
-        value = search();
+        function walkParts() {
+          // If there are more name parts, resolve them in the context
+          // from the former resolution.
+          while (value && i < names.length && !isPromise(value)) {
+            // Call methods in the context of their object
+            if (typeof value === 'function') value = value.call(view);
+            value = when(value, function(value) {
+              view = value;
+              return value = view[names[i++]];
+            });
+          }
+          if (isPromise(value)) // If we find a promise, defer until its resolved
+            return value.then(function(v) { value = v; return walkParts(); });
+          return value;
+        }
+
+        value = when(view, function(view) {
+          return view[names[0]];
+        });
+        value = when(value, function(v) {
+          value = v;
+          return walkContext();
+        });
+        value = when(value, function(v) {
+          value = v;
+          i = 1;
+          return walkParts();
+        });
       }
+
       self._cache[name] = value;
     }
+
+    // Call methods in the context of their object and pass the lookup context
+    // as a parameter.
+    value = when(value, function(value) {
+      return typeof value === 'function' ? value.call(view, self.view) : value;
+    });
 
     return value;
   };
