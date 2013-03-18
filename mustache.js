@@ -358,10 +358,10 @@
       } else if (typeof value === 'function') {
         var text = template == null ? null : template.slice(token[3], token[5]);
         value = value.call(context.view, text, function (template) {
-          return writer.render(template, context);
+          return writer.render('' + template, context);
         });
         promise = when(value, function(value) {
-          if (value != null) promise = write(value);
+          if (value != null) promise = write(writer.render('' + value, context));
           return promise;
         });
       } else if (value) {
@@ -379,10 +379,20 @@
       if (typeof value === 'function') promise = write(value(context));
       break;
     case '&':
-      if (value != null) promise = write(value);
+      if (typeof value === 'function')
+        value = writer.render('' + value.call(context.view), context);
+      promise = when(value, function(value) {
+        if (value != null) promise = write(value);
+        return promise;
+      });
       break;
     case 'name':
-      if (value != null) promise = write(exports.escape(value));
+      if (typeof value === 'function')
+        value = writer.render('' + value.call(context.view), context);
+      promise = when(value, function(value) {
+        if (value != null) promise = write(exports.escape(value));
+        return promise;
+      });
       break;
     case 'text':
       promise = write(value);
