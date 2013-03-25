@@ -200,7 +200,7 @@
             if (typeof value === 'function') value = value.call(view);
             value = when(value, function(value) {
               view = value;
-              return value = view[names[i++]];
+              return value = view != null ? view[names[i++]] : null;
             });
           }
           if (isPromise(value)) // If we find a promise, defer until its resolved
