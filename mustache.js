@@ -185,7 +185,7 @@
           // context that contains the first part of the name
           while (!isPromise(value) && value == null && (context = context.parent)) {
             view = context.view;
-            value = view[names[0]];
+            value = when(view, function(view) { return view[names[0]]; });
           }
           if (isPromise(value)) // If we find a promise, defer until its resolved
             return value.then(function(v) { value = v; return walkContext(); });
@@ -386,7 +386,7 @@
           return promise;
         });
       } else if (value) {
-        promise = renderTokens(token[4], writer, context, template, write);
+        promise = renderTokens(token[4], writer, context.push(value), template, write);
       }
       break;
     case '^':
